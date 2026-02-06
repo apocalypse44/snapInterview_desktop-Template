@@ -4,11 +4,19 @@ import json
 import os
 import wave
 import time
+import socket
 from s3_handler import S3Handler
 
+def get_free_port():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("", 0))  # OS assigns free port
+    port = s.getsockname()[1]
+    s.close()
+    print(port)
+    return port
 
 class WebSocketServer:
-    def __init__(self, host="0.0.0.0", port=8765, on_connect=None, on_disconnect=None):
+    def __init__(self, host="0.0.0.0", port=None, on_connect=None, on_disconnect=None):
         self.host = host
         self.port = port
         self.on_connect = on_connect
@@ -132,17 +140,29 @@ class WebSocketServer:
         if self.server is not None:
             print("Server already running")
             return
-        
-        self.server = await websockets.serve(self.handler, self.host, self.port)
+
+        # Pick random free port if not set
+        if self.port is None:
+            self.port = get_free_port()
+
+        self.server = await websockets.serve(
+            self.handler,
+            self.host,
+            self.port
+        )
+
         print(f"WebSocket server running on {self.host}:{self.port}")
-        print(f"Bound sockets: {self.server.sockets}")
+
     
     async def stop(self):
         if self.server is None:
             return
-        
+
         print("Stopping WebSocket server...")
         self.server.close()
         await self.server.wait_closed()
+
         self.server = None
+        self.port = None   # 🔥 Reset so next start gets new port
+
         print("WebSocket server stopped")
